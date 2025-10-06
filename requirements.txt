@@ -1,10 +1,5 @@
-streamlit==1.38.0
+streamlit==1.37.0
 pdfplumber
+numpy
 sentence-transformers
 scikit-learn
-torch
-
-
-
-
-
