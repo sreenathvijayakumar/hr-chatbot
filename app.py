@@ -11,8 +11,9 @@ import os
 # -----------------------------
 @st.cache_resource
 def load_models():
-    embedder = SentenceTransformer("multi-qa-MiniLM-L6-cos-v1", device="cpu")
-    generator = pipeline("text2text-generation", model="google/flan-t5-base")
+    embedder = SentenceTransformer("paraphrase-MiniLM-L3-v2", device="cpu")
+    generator = pipeline("text2text-generation", model="google/flan-t5-small")
+
     return embedder, generator
 
 
