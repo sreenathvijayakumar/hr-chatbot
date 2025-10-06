@@ -1,38 +1,35 @@
 import streamlit as st
-import pickle
-import numpy as np
-import faiss
-from transformers import pipeline
 from sentence_transformers import SentenceTransformer
+from PyPDF2 import PdfReader
+import faiss
+import numpy as np
+import torch
 
-st.set_page_config(page_title="HR Chatbot", page_icon="🤖")
-st.title("🤖 HR Policy Chatbot")
+# Use CPU only
+torch.set_default_device("cpu")
 
-# --- Load saved FAISS index ---
-try:
-    with open("faiss_store.pkl", "rb") as f:
-        index, chunks = pickle.load(f)
-except Exception as e:
-    st.error(f"Error loading faiss_store.pkl: {e}")
-    st.stop()
+st.title("💼 HR Policy Chatbot")
 
-# --- Load embedding model ---
-model = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
+# Load model
+model = SentenceTransformer("paraphrase-MiniLM-L3-v2")
 
+# Load embeddings once
+@st.cache_resource
+def load_embeddings():
+    pdf = PdfReader("HR_Policy.pdf")
+    text = " ".join(page.extract_text() for page in pdf.pages if page.extract_text())
+    sentences = text.split(". ")
+    embeddings = model.encode(sentences)
+    index = faiss.IndexFlatL2(embeddings.shape[1])
+    index.add(embeddings)
+    return sentences, index, embeddings
 
-# --- Load small LLM ---
-qa_model = pipeline("text2text-generation", model="google/flan-t5-base")
+sentences, index, embeddings = load_embeddings()
 
-# --- Question Input ---
-question = st.text_input("Ask your question about HR Policy:")
-
-if question:
-    q_emb = model.encode([question])
-    _, top_indices = index.search(np.array(q_emb), k=3)
-    context = " ".join([chunks[i] for i in top_indices[0]])
-
-    prompt = f"Answer this question using only this HR policy info:\n\n{context}\n\nQuestion: {question}\nAnswer:"
-    with st.spinner("Thinking..."):
-        answer = qa_model(prompt, max_new_tokens=200)[0]["generated_text"]
-    st.success(answer)
+# Chat input
+query = st.text_input("Ask your HR question:")
+if query:
+    q_emb = model.encode([query])
+    D, I = index.search(q_emb, 1)
+    st.write("📄", sentences[I[0][0]])
 
