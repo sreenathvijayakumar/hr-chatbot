@@ -1,35 +1,39 @@
 import streamlit as st
 from sentence_transformers import SentenceTransformer
 from PyPDF2 import PdfReader
-import faiss
 import numpy as np
-import torch
+import faiss
 
-# Use CPU only
-torch.set_default_device("cpu")
+# --- Safe Model Loading (no torch.to()) ---
+@st.cache_resource
+def load_model():
+    import torch
+    torch.set_default_tensor_type(torch.FloatTensor)  # Prevents conversion issues
+    model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2", device=None)
+    return model
+
+model = load_model()
 
 st.title("💼 HR Policy Chatbot")
 
-# Load model
-model = SentenceTransformer("paraphrase-MiniLM-L3-v2")
-
-# Load embeddings once
+# --- Load and Embed PDF ---
 @st.cache_resource
-def load_embeddings():
+def load_data():
     pdf = PdfReader("HR_Policy.pdf")
-    text = " ".join(page.extract_text() for page in pdf.pages if page.extract_text())
-    sentences = text.split(". ")
-    embeddings = model.encode(sentences)
+    text = " ".join([page.extract_text() or "" for page in pdf.pages])
+    sentences = [s.strip() for s in text.split(". ") if s.strip()]
+    embeddings = model.encode(sentences, show_progress_bar=True)
     index = faiss.IndexFlatL2(embeddings.shape[1])
-    index.add(embeddings)
-    return sentences, index, embeddings
+    index.add(np.array(embeddings))
+    return sentences, index
 
-sentences, index, embeddings = load_embeddings()
+sentences, index = load_data()
 
-# Chat input
+# --- Chat Interface ---
 query = st.text_input("Ask your HR question:")
 if query:
     q_emb = model.encode([query])
-    D, I = index.search(q_emb, 1)
-    st.write("📄", sentences[I[0][0]])
-
+    D, I = index.search(q_emb, 3)
+    st.subheader("Top Answers:")
+    for i in I[0]:
+        st.write("-", sentences[i])
