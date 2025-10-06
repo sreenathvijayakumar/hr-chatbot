@@ -35,5 +35,3 @@ if pdf:
         with st.spinner("Thinking..."):
             answer = qa_model(prompt)[0]["generated_text"].split("Answer:")[-1].strip()
         st.success(answer)
-
-
