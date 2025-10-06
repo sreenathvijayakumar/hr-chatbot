@@ -23,7 +23,8 @@ if pdf:
     index = faiss.IndexFlatL2(embeddings.shape[1])
     index.add(np.array(embeddings))
 
-    qa_model = pipeline("text-generation", model="mistralai/Mistral-7B-Instruct-v0.2", device_map="auto", max_new_tokens=200)
+    qa_model = pipeline("text2text-generation", model="google/flan-t5-base")
+
 
     question = st.text_input("Ask your question:")
     if question:
