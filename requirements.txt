@@ -1,7 +1,5 @@
 streamlit
-sentence-transformers
 faiss-cpu
+sentence-transformers
 transformers
-accelerate
 PyPDF2
-torch
