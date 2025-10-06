@@ -1,38 +1,28 @@
 import streamlit as st
-from PyPDF2 import PdfReader
-from sentence_transformers import SentenceTransformer
-from transformers import pipeline
-import faiss
+import pickle
 import numpy as np
+import faiss
+from transformers import pipeline
+from sentence_transformers import SentenceTransformer
 
-st.set_page_config(page_title="HR Policy Chatbot", page_icon="🤖")
 st.title("🤖 HR Policy Chatbot")
-st.write("Ask any question about your company’s HR policies!")
 
-pdf = st.file_uploader("Upload your HR Policy PDF", type="pdf")
-if pdf:
-    pdf_reader = PdfReader(pdf)
-    text = ""
-    for page in pdf_reader.pages:
-        text += page.extract_text()
+# Load the learned data
+with open("faiss_store.pkl", "rb") as f:
+    index, chunks = pickle.load(f)
 
-    chunks = [text[i:i+500] for i in range(0, len(text), 500)]
+model = SentenceTransformer("all-MiniLM-L6-v2")
+qa_model = pipeline("text2text-generation", model="google/flan-t5-base")
 
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-    embeddings = model.encode(chunks)
-    index = faiss.IndexFlatL2(embeddings.shape[1])
-    index.add(np.array(embeddings))
+# Ask questions
+user_question = st.text_input("Ask your HR question:")
 
-    qa_model = pipeline("text2text-generation", model="google/flan-t5-base")
+if user_question:
+    q_emb = model.encode([user_question])
+    _, top_indices = index.search(np.array(q_emb), k=3)
+    context = " ".join([chunks[i] for i in top_indices[0]])
 
+    prompt = f"Answer the question using only this context:\n\n{context}\n\nQuestion: {user_question}\nAnswer:"
+    answer = qa_model(prompt)[0]["generated_text"]
 
-    question = st.text_input("Ask your question:")
-    if question:
-        q_emb = model.encode([question])
-        _, top_indices = index.search(np.array(q_emb), k=3)
-        context = " ".join([chunks[i] for i in top_indices[0]])
-
-        prompt = f"Answer the question based only on this HR policy context:\n\n{context}\n\nQuestion: {question}\nAnswer:"
-        with st.spinner("Thinking..."):
-            answer = qa_model(prompt)[0]["generated_text"].split("Answer:")[-1].strip()
-        st.success(answer)
+    st.success(answer)
