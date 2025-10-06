@@ -17,7 +17,8 @@ except Exception as e:
     st.stop()
 
 # --- Load embedding model ---
-model = SentenceTransformer("all-MiniLM-L6-v2")
+model = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
+
 
 # --- Load small LLM ---
 qa_model = pipeline("text2text-generation", model="google/flan-t5-base")
