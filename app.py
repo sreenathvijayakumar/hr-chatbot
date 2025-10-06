@@ -68,4 +68,3 @@ else:
             answer = generate_answer(question, embedder, generator, sentences, embeddings)
         st.markdown("### 🟢 Answer:")
         st.write(answer)
-
