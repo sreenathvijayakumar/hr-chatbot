@@ -1,56 +1,49 @@
-import streamlit as st
+import os
+from flask import Flask, request, render_template, jsonify
 import pdfplumber
-import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer, util
 
-# Page setup
-st.set_page_config(page_title="HR Policy Chatbot", page_icon="💬")
-st.title("💬 HR Policy Chatbot (Fixed Version)")
+app = Flask(__name__)
+model = SentenceTransformer('all-MiniLM-L6-v2')
 
-PDF_PATH = "HR_Policy.pdf"
+# Store chunks and embeddings in memory for demo purposes
+pdf_chunks = []
+pdf_embeddings = []
 
-# Load model only once
-@st.cache_resource
-def load_model():
-    return SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
+def chunk_text(text, chunk_size=500):
+    """Split text into chunks of chunk_size words."""
+    words = text.split()
+    return [' '.join(words[i:i+chunk_size]) for i in range(0, len(words), chunk_size)]
 
-# Extract PDF text
-def extract_text(pdf_path):
-    text = ""
-    try:
-        with pdfplumber.open(pdf_path) as pdf:
-            for page in pdf.pages:
-                t = page.extract_text()
-                if t:
-                    text += t + "\n"
-    except Exception as e:
-        st.error(f"Error reading PDF: {e}")
-    return text
+def load_pdf(file_path):
+    global pdf_chunks, pdf_embeddings
+    pdf_chunks = []
+    pdf_embeddings = []
+    with pdfplumber.open(file_path) as pdf:
+        text = '\n'.join([page.extract_text() or '' for page in pdf.pages])
+    pdf_chunks = chunk_text(text)
+    pdf_embeddings = model.encode(pdf_chunks, convert_to_tensor=True)
 
-# Create embeddings (do NOT pass model as parameter)
-@st.cache_data
-def create_embeddings(text):
-    model = load_model()  # load inside the function
-    chunks = [c.strip() for c in text.split("\n") if c.strip()]
-    embeddings = model.encode(chunks)
-    return chunks, embeddings
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-# Main logic
-if not PDF_PATH:
-    st.error("❌ HR_Policy.pdf not found!")
-else:
-    text = extract_text(PDF_PATH)
-    if not text:
-        st.error("❌ Could not extract text from PDF.")
-    else:
-        sentences, embeddings = create_embeddings(text)
-        model = load_model()
+@app.route('/upload', methods=['POST'])
+def upload_pdf():
+    file = request.files['pdf']
+    file_path = os.path.join('uploads', file.filename)
+    file.save(file_path)
+    load_pdf(file_path)
+    return 'PDF uploaded and processed!'
 
-        query = st.text_input("Ask a question about HR Policy:")
-        if query:
-            q_emb = model.encode([query])
-            sims = cosine_similarity(q_emb, embeddings)[0]
-            best_answer = sentences[int(np.argmax(sims))]
-            st.markdown("### 🟢 Answer:")
-            st.write(best_answer)
+@app.route('/ask', methods=['POST'])
+def ask():
+    question = request.form['question']
+    question_embedding = model.encode(question, convert_to_tensor=True)
+    hits = util.semantic_search(question_embedding, pdf_embeddings, top_k=3)[0]
+    results = [pdf_chunks[hit['corpus_id']] for hit in hits]
+    return jsonify({'answers': results})
+
+if __name__ == '__main__':
+    os.makedirs('uploads', exist_ok=True)
+    app.run(debug=True)
