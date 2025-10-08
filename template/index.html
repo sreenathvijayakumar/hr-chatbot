@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF Chatbot</title>
+</head>
+<body>
+    <h2>Upload PDF</h2>
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <input type="file" name="pdf" accept=".pdf" required>
+        <input type="submit" value="Upload">
+    </form>
+    <hr>
+    <h2>Ask a Question</h2>
+    <form id="ask-form">
+        <input type="text" name="question" id="question" required>
+        <input type="submit" value="Ask">
+    </form>
+    <div id="answer"></div>
+    <script>
+    document.getElementById('ask-form').onsubmit = async (e) => {
+        e.preventDefault();
+        let formData = new FormData();
+        formData.append('question', document.getElementById('question').value);
+        let res = await fetch('/ask', { method: 'POST', body: formData });
+        let data = await res.json();
+        document.getElementById('answer').innerHTML = '<b>Answers:</b><ul>' +
+            data.answers.map(a => `<li>${a}</li>`).join('') + '</ul>';
+    };
+    </script>
+</body>
+</html>
